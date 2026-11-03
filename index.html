@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#141814" />
+    <meta name="description" content="An unofficial browser-first audio research prototype inspired by the Death By Audio Reverberation Machine." />
+    <title>Reverberation Lab — browser pedal experiment</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="topbar">
+        <a href="#home" class="brandmark" aria-label="Reverberation Lab home"><span class="brand-icon">~</span> ACOUSTIC EXPERIMENTS <span class="brand-suffix">/ LAB 001</span></a>
+        <span class="topbar-right"><span class="live-dot"></span> REAL-TIME AUDIOWORKLET <span class="topbar-version">v0.1 / RESEARCH</span></span>
+      </header>
+
+      <main id="home" class="layout">
+        <section class="intro">
+          <div class="eyebrow"><span>01 / SIGNAL EXPERIMENT</span><span class="slash">///</span><span>WEB AUDIO SERIES</span></div>
+          <h1>Make some<br /><em>beautiful noise.</em></h1>
+          <p class="lead">An experimental, browser-native reverb machine. Custom delay lines, feedback networks and analog-inspired gain shaping. No plugins. No server processing.</p>
+          <div class="intro-meta"><div><strong>ENGINE</strong><span>TYPE SCRIPT / AUDIOWORKLET</span></div><div><strong>PROFILE</strong><span>BTDR-2H-L INSPIRED · APPROXIMATE</span></div></div>
+        </section>
+
+        <section class="pedal-space" aria-labelledby="pedal-name">
+          <div class="pedal-shadow"></div>
+          <div class="pedal" id="pedal">
+            <div class="pedal-surface">
+              <div class="pedal-overline"><span>R / M</span><span>EXPERIMENTAL AUDIO DEVICE</span></div>
+              <div class="pedal-title" id="pedal-name">REVERBERATION<br /><span>MACHINE</span></div>
+              <div class="pedal-edition">BROWSER EDITION <span>NO. 001</span></div>
+              <div class="dials" role="group" aria-label="Pedal controls">
+                <label class="control" for="altitude">
+                  <span class="dial-area"><span class="dial-ticks"></span><span class="dial" id="altitude-dial"><span class="dial-pointer"></span><span class="dial-center"></span></span><input id="altitude" type="range" min="0" max="100" value="32" step="1" aria-label="Altitude gain" /></span>
+                  <span class="control-name">ALTITUDE</span><output id="altitude-value" for="altitude">32</output>
+                </label>
+                <label class="control" for="verb">
+                  <span class="dial-area"><span class="dial-ticks"></span><span class="dial" id="verb-dial"><span class="dial-pointer"></span><span class="dial-center"></span></span><input id="verb" type="range" min="0" max="100" value="52" step="1" aria-label="Verb wet level" /></span>
+                  <span class="control-name">VERB</span><output id="verb-value" for="verb">52</output>
+                </label>
+                <label class="control" for="volume">
+                  <span class="dial-area"><span class="dial-ticks"></span><span class="dial" id="volume-dial"><span class="dial-pointer"></span><span class="dial-center"></span></span><input id="volume" type="range" min="0" max="100" value="58" step="1" aria-label="Output volume" /></span>
+                  <span class="control-name">VOLUME</span><output id="volume-value" for="volume">58</output>
+                </label>
+              </div>
+              <div class="toggle-section"><span class="small-label">CHARACTER</span><div class="tone-toggle" role="group" aria-label="Reverb brightness"><button type="button" data-tone="dark" aria-pressed="true">DARK</button><button type="button" data-tone="bright" aria-pressed="false">BRIGHT</button></div><span class="small-label right">01 / 02</span></div>
+              <div class="pedal-lower"><div class="pedal-identity">R<br /><span>M</span><small>REV.<br />001</small></div><div class="stomp-side"><div class="stomp-indicator"><span class="indicator" id="effect-light"></span><span id="effect-label">ACTIVE</span></div><button type="button" class="stomp" id="bypass" aria-pressed="false" aria-label="Toggle pedal bypass"><span class="stomp-ridges"></span><span class="stomp-core"></span></button><span class="stomp-caption">BYPASS / ENGAGE</span></div></div>
+              <div class="pedal-bottom"><span>REVERB × DISTORTION</span><span>UNOFFICIAL RESEARCH MODEL</span></div>
+            </div>
+          </div>
+          <p class="pedal-caption"><span class="caption-mark">↖</span> Use the three knobs and footswitch to shape the sound</p>
+        </section>
+
+        <section class="workbench" aria-labelledby="workbench-title">
+          <div class="workbench-heading"><div><div class="eyebrow">02 / PLAYGROUND</div><h2 id="workbench-title">The workbench</h2></div><span class="chip" id="engine-state">AUDIO OFFLINE</span></div>
+          <div class="source-grid">
+            <button class="source-action" type="button" id="demo-button"><span class="source-icon">✳</span><span><strong>Play demo riff</strong><small>Generated locally · no audio file needed</small></span><span class="source-chevron">↗</span></button>
+            <label class="source-action upload-action" for="file-input"><span class="source-icon">↥</span><span><strong>Load an audio file</strong><small>WAV, MP3, or other browser-supported audio</small></span><span class="source-chevron">↗</span></label><input type="file" id="file-input" accept="audio/*" hidden />
+          </div>
+          <div class="transport"><div class="transport-controls"><button type="button" id="play-button" disabled aria-label="Play selected source"><span id="play-icon">▶</span> <span id="play-text">PLAY</span></button><button type="button" id="stop-button" disabled>■ STOP</button><label class="checkbox-label"><input type="checkbox" id="loop" checked /> LOOP</label></div><div class="loaded-file" id="loaded-file">No audio loaded yet.</div></div>
+          <div class="waveform"><div class="waveform-top"><span>OUTPUT SIGNAL / L</span><span id="scope-status">AWAITING INPUT</span></div><canvas id="scope" width="940" height="132" aria-label="Live audio waveform"></canvas><div class="waveform-axis"><span>−1.0</span><span>0.0</span><span>+1.0</span></div></div>
+          <div class="workbench-footer"><div class="input-area"><button type="button" class="text-action" id="mic-button">◎ USE LIVE GUITAR / MICROPHONE</button><span class="minor-copy">Headphones recommended to avoid feedback.</span></div><button type="button" class="download-action" id="export-button" disabled>↓ EXPORT PROCESSED WAV</button></div>
+          <div class="system-line"><span id="status" role="status" aria-live="polite">Choose “Play demo riff” to hear the effect.</span><label class="checkbox-label safety"><input type="checkbox" id="safety" checked /> OUTPUT SAFETY ON</label></div>
+        </section>
+      </main>
+      <footer class="footer"><span>REVERBERATION LAB © 2026</span><p>Inspired by the Death By Audio Reverberation Machine. Unofficial, unverified audio model. Not affiliated with Death By Audio.</p><span>BUILD 001 — OPEN RESEARCH</span></footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

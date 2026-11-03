@@ -1,0 +1,20 @@
+{
+  "name": "reverberation-machine-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Unofficial browser-first Reverberation Machine DSP research prototype",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "tsc -p tsconfig.dsp.json && node --test tests/*.test.mjs",
+    "build:portable": "tsc -p tsconfig.portable.json && node scripts/build-portable.mjs",
+    "check": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.dsp.json && node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "7.2.0"
+  }
+}
