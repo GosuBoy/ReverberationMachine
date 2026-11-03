@@ -11,6 +11,17 @@ An **unofficial, experimental** reverb/distortion pedal inspired by the Death By
 
 Both profiles run continuously in the `AudioWorklet` for tail-preserving, click-smoothed switching. Optional **Match levels** estimates a fixed RMS trim using the same loaded source (or a synthetic fixture for live input), in a Worker. Matching never introduces playback AGC. WAV export follows the selected profile. Details and limitations: [CIRCUIT_CANDIDATE_V02.md](CIRCUIT_CANDIDATE_V02.md).
 
+## Live audio latency and output selection
+
+The **Audio I/O** panel adds a **5 ms output-buffer request** (not guaranteed), capture constraints for low latency, selectable output devices in compatible browsers, and browser-reported output/capture latency readouts. Both profiles keep exactly the same DSP voicing as before.
+
+- Low is the default; Interactive and Stable options help when a device crackles. Applying buffer settings restarts monitoring.
+- **Direct output** using `AudioContext.setSinkId()` is preferred. Where unavailable, the app can use an audio-element fallback if supported; otherwise it uses the system output.
+- Choose a device from the dropdown or authorize one from the device picker. An embedded preview may block speaker-selection permissions; use the top-level HTTPS app.
+- For responsive guitar monitoring, use a wired USB interface/headphones and turn off hardware direct monitoring if it duplicates the dry signal.
+
+Output readouts are browser estimates and **not measured round-trip latency**. See [AUDIO_IO_NOTES.md](AUDIO_IO_NOTES.md) for details and troubleshooting.
+
 ## Quick start (Bun + Vite)
 
 ```bash

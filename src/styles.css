@@ -133,3 +133,21 @@ h2 { font-size: 36px; letter-spacing: -.06em; font-weight: 600; margin: 12px 0 0
 .compare-meta #match-result { color: #697767; font: 10px 'DM Mono', monospace; }
 .compare-panel p { margin: 13px 0 0; font-size: 11px; color: #61705e; line-height: 1.5; }
 @media (max-width: 570px) { .compare-choices { grid-template-columns: 1fr; }.compare-disclaimer { font-size: 8px; } }
+
+/* Audio I/O routing and latency diagnostics */
+.audio-io-panel { background: #ecf0e8; border: 1px solid #ccd4c6; border-radius: 12px; padding: 20px; margin: 20px 0 24px; }
+.audio-io-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:15px; }
+.io-tag { color:#839080; font: 10px 'DM Mono', monospace; letter-spacing:.09em; }
+.audio-io-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.io-field { min-width:0; display:flex; flex-direction:column; gap:6px; }
+.io-field > label { color:#455545; font-size:12px; font-weight:600; }
+.io-select-row { display:flex; align-items:stretch; min-height:42px; gap:6px; }
+.io-select-row select { flex:1; width:1px; min-width:0; border:1px solid #b8c3b2; border-radius:6px; background:#f8faf5; color:#344835; font: 12px 'DM Mono', monospace; padding:9px; }
+.io-select-row button { border:1px solid #b8c3b2; border-radius:6px; color:#344835; background:#f8faf5; cursor:pointer; font-size:12px; padding:6px 12px; }
+.io-select-row button:disabled, .io-minor-action:disabled { opacity:.5; cursor:default; }
+.io-select-row select:focus-visible, .io-select-row button:focus-visible, .io-minor-action:focus-visible { outline:2px solid #477f5c; outline-offset:2px; }
+.io-minor-action { background:none; border:none; color:#476a4f; text-decoration:underline; text-underline-offset:3px; width:fit-content; font: 11px 'DM Mono', monospace; padding:2px 0; cursor:pointer; text-align:left; }
+.io-subtext { color:#6c796a; font-size:10px; line-height:1.4; }
+.io-report { margin-top:15px; padding:11px 12px; background:#dbe5da; border-radius:6px; color:#38503e; font: 11px 'DM Mono', monospace; line-height:1.5; }
+.io-disclaimer { color:#6c796a; font: 11px 'DM Mono', monospace; line-height:1.55; margin:10px 0 0; }
+@media (max-width:650px) { .audio-io-grid { grid-template-columns:1fr; }.audio-io-panel { padding:15px; }.io-tag { font-size:8px; } }

@@ -1,5 +1,6 @@
 import workletUrl from './audio/pedal-worklet.ts?worker&url';
 import matchWorkerUrl from './audio/match-worker.ts?worker&url';
+import { OutputRouter, contextOptions, liveGuitarConstraints, readLatency, type LatencyPreset } from './audio/io.js';
 import type { ModelProfile } from './dsp/ab.js';
 import type { GainMatchResult } from './dsp/match.js';
 import { makeDemoBuffer } from './audio/demo.js';
@@ -33,11 +34,18 @@ class ReverbLab {
   private matchWorker: Worker | null = null;
   private calibrationId = 0;
   private calibrationTimer: number | null = null;
+  private outputRouter: OutputRouter | null = null;
+  private selectedOutputDevice = '';
+  private latencyPreference: LatencyPreset = 'low';
+  private outputBusy = false;
 
   constructor() {
     this.wireControls();
     this.updateDialReadouts();
     this.renderScope();
+    void this.refreshOutputDevices();
+    navigator.mediaDevices?.addEventListener?.('devicechange', () => { void this.refreshOutputDevices(); });
+    this.updateIoReport();
   }
 
   private setStatus(message: string, error = false): void {
@@ -99,6 +107,12 @@ class ReverbLab {
     elem<HTMLButtonElement>('stop-button').addEventListener('click', () => this.stopPlayback(true));
     elem<HTMLButtonElement>('mic-button').addEventListener('click', () => { void this.toggleMicrophone(); });
     elem<HTMLButtonElement>('export-button').addEventListener('click', () => { void this.exportWav(); });
+    elem<HTMLSelectElement>('output-device').addEventListener('change', () => {
+      void this.switchOutput(elem<HTMLSelectElement>('output-device').value);
+    });
+    elem<HTMLButtonElement>('output-refresh').addEventListener('click', () => { void this.refreshOutputDevices(); });
+    elem<HTMLButtonElement>('output-choose').addEventListener('click', () => { void this.chooseOutput(); });
+    elem<HTMLButtonElement>('latency-apply').addEventListener('click', () => { void this.applyLatencyPreference(); });
     for (const button of document.querySelectorAll<HTMLButtonElement>('[data-profile]')) {
       button.addEventListener('click', () => {
         this.activeProfile = button.dataset.profile === 'candidate' ? 'candidate' : 'classic';
@@ -122,13 +136,162 @@ class ReverbLab {
     });
   }
 
+  private supportsOutputSelection(): boolean {
+    // Feature detection rather than browser sniffing: Safari/Firefox may only
+    // support default output, while Chrome exposes AudioContext.setSinkId.
+    return (typeof AudioContext !== 'undefined' && typeof (AudioContext.prototype as AudioContext & { setSinkId?: (id: string) => Promise<void> }).setSinkId === 'function') ||
+      (typeof HTMLMediaElement !== 'undefined' && typeof HTMLMediaElement.prototype.setSinkId === 'function');
+  }
+
+  private async refreshOutputDevices(preferred?: { deviceId: string; label: string }): Promise<void> {
+    const select = elem<HTMLSelectElement>('output-device');
+    const supported = this.supportsOutputSelection();
+    select.disabled = !supported || this.outputBusy;
+    elem<HTMLButtonElement>('output-choose').disabled = !supported || this.outputBusy;
+    select.replaceChildren(new Option('System default', ''));
+    const devices: MediaDeviceInfo[] = [];
+    try {
+      if (navigator.mediaDevices?.enumerateDevices) {
+        const listed = await navigator.mediaDevices.enumerateDevices();
+        devices.push(...listed.filter(d => d.kind === 'audiooutput' && d.deviceId !== 'default'));
+      }
+    } catch { /* Permission restrictions: the default output still works. */ }
+    const seen = new Set<string>();
+    let i = 0;
+    for (const device of devices) {
+      if (!device.deviceId || seen.has(device.deviceId)) continue;
+      seen.add(device.deviceId);
+      i++;
+      select.add(new Option(device.label || `Audio output ${i} (permission may be required)`, device.deviceId));
+    }
+    if (preferred?.deviceId && !seen.has(preferred.deviceId)) {
+      select.add(new Option(preferred.label || 'Selected output', preferred.deviceId));
+      seen.add(preferred.deviceId);
+    }
+    if (this.selectedOutputDevice && !seen.has(this.selectedOutputDevice)) {
+      // Some browsers hide device IDs when a permission was revoked; do not
+      // silently route an existing playing stream to an unintended output.
+      select.add(new Option('Previously selected output', this.selectedOutputDevice));
+    }
+    select.value = this.selectedOutputDevice;
+    this.updateIoReport();
+  }
+
+  private async chooseOutput(): Promise<void> {
+    const media = navigator.mediaDevices as (MediaDevices & {
+      selectAudioOutput?: () => Promise<MediaDeviceInfo>;
+    }) | undefined;
+    if (!media) { this.setStatus('Output selection requires HTTPS or localhost.', true); return; }
+    if (!this.supportsOutputSelection()) {
+      this.setStatus('This browser cannot route to a chosen speaker. Use your OS sound output setting.', true);
+      return;
+    }
+    try {
+      if (typeof media.selectAudioOutput === 'function') {
+        // Must be requested directly from this click to retain user activation.
+        const device = await media.selectAudioOutput();
+        await this.refreshOutputDevices({ deviceId: device.deviceId, label: device.label });
+        await this.switchOutput(device.deviceId);
+      } else {
+        // Chromium commonly reveals audio outputs after microphone permission.
+        await this.refreshOutputDevices();
+        this.setStatus('Select a permitted output in the dropdown. If only Default appears, enable microphone permission or choose the output in your system settings.');
+      }
+    } catch (error) {
+      this.setStatus(`Could not grant speaker access: ${String(error)}. Try the top-level GitHub Pages site instead of an embedded preview.`, true);
+    }
+  }
+
+  private async switchOutput(deviceId: string): Promise<void> {
+    if (this.outputBusy) return;
+    this.outputBusy = true;
+    const select = elem<HTMLSelectElement>('output-device');
+    select.disabled = true;
+    elem<HTMLButtonElement>('output-choose').disabled = true;
+    const oldDevice = this.selectedOutputDevice;
+    try {
+      await this.ensureAudio();
+      if (!this.outputRouter) throw new Error('Audio output graph not ready');
+      const mode = await this.outputRouter.select(deviceId);
+      this.selectedOutputDevice = deviceId;
+      this.setStatus(mode === 'direct'
+        ? 'Audio output switched. Direct Web Audio routing active.'
+        : 'Audio output switched via media-element fallback; this may add latency.');
+    } catch (error) {
+      select.value = oldDevice;
+      this.setStatus(`Output change failed: ${String(error)}. Try a permitted device or the system default.`, true);
+    } finally {
+      this.outputBusy = false;
+      await this.refreshOutputDevices();
+      this.updateIoReport();
+    }
+  }
+
+  private updateIoReport(): void {
+    const destination = elem<HTMLElement>('io-report');
+    const context = this.context;
+    if (!context) {
+      destination.textContent = `Audio not started · ${this.latencyPreference === 'low' ? '5 ms low-latency request' : this.latencyPreference + ' mode'} · ${this.supportsOutputSelection() ? 'output selection available' : 'system output only in this browser'}`;
+      return;
+    }
+    const settings = this.microphoneStream?.getAudioTracks()[0]?.getSettings() as ({ latency?: number } | undefined);
+    const numbers = readLatency(context, settings, this.outputRouter?.mode === 'media-element');
+    const fmt = (v: number | null): string => v === null ? 'not reported' : `${v.toFixed(1)} ms`;
+    const output = numbers.knownOutputMs === null
+      ? `base ${fmt(numbers.baseMs)} + device ${fmt(numbers.outputMs)}`
+      : `~${fmt(numbers.knownOutputMs)} reported output (base ${fmt(numbers.baseMs)} + device ${fmt(numbers.outputMs)})`;
+    const capture = this.microphoneStream ? ` · capture ${fmt(numbers.inputMs)}` : '';
+    const route = numbers.fallback ? ' · media-element output (extra latency unknown)' : ' · direct Web Audio';
+    destination.textContent = `${Math.round(context.sampleRate)} Hz · ${output}${capture}${route}. Not measured round-trip.`;
+  }
+
+  private async applyLatencyPreference(): Promise<void> {
+    const selected = elem<HTMLSelectElement>('latency-mode').value as LatencyPreset;
+    if (!['low', 'balanced', 'stable'].includes(selected)) return;
+    if (!this.context) {
+      this.latencyPreference = selected;
+      this.updateIoReport();
+      this.setStatus('Buffer preference selected. Start the audio engine to apply.');
+      return;
+    }
+    if (selected === this.latencyPreference) {
+      this.updateIoReport();
+      this.setStatus('Buffer preference is already applied.');
+      return;
+    }
+    const applyButton = elem<HTMLButtonElement>('latency-apply');
+    applyButton.disabled = true;
+    try {
+      this.stopPlayback(true);
+      await this.stopMicrophone();
+      this.outputRouter?.dispose();
+      this.outputRouter = null;
+      this.node?.disconnect();
+      this.analyser?.disconnect();
+      await this.context.close();
+      this.context = null;
+      this.node = null;
+      this.analyser = null;
+      this.latencyPreference = selected;
+      await this.ensureAudio();
+      this.setStatus('Audio engine restarted with new latency preference. Resume playback or live monitoring.');
+    } catch (error) {
+      this.setStatus(`Could not restart audio: ${String(error)}`, true);
+    } finally {
+      applyButton.disabled = false;
+      this.updateIoReport();
+    }
+  }
+
   private async ensureAudio(): Promise<AudioContext> {
     if (!this.context) {
       if (!window.AudioContext || !window.AudioWorkletNode) {
         throw new Error('This browser does not support AudioWorklet. Try a recent Chromium, Safari, or Firefox.');
       }
       // AudioContext is only created as a result of a user-initiated operation.
-      const context = new AudioContext({ latencyHint: 'interactive' });
+      let context: AudioContext;
+      try { context = new AudioContext(contextOptions(this.latencyPreference)); }
+      catch { context = new AudioContext({ latencyHint: 'interactive' }); }
       this.context = context;
       try {
         await context.audioWorklet.addModule(workletUrl);
@@ -154,16 +317,33 @@ class ReverbLab {
         this.analyserData = new Float32Array(analyser.fftSize);
         this.analyser = analyser;
         node.connect(analyser);
-        analyser.connect(context.destination);
+        this.outputRouter = new OutputRouter(context, analyser);
+        // A fallback MediaStream/HTMLAudioElement route needs a running
+        // context before its play() promise can settle on some browsers.
+        if (context.state !== 'running') await context.resume();
+        if (this.selectedOutputDevice) {
+          try { await this.outputRouter.select(this.selectedOutputDevice); }
+          catch {
+            this.selectedOutputDevice = '';
+            this.setStatus('Previous output device unavailable; using system default.', true);
+          }
+        }
         elem('engine-state').textContent = `${Math.round(context.sampleRate / 1000)} KHZ / RUNNING`;
         elem('scope-status').textContent = 'LIVE MONITOR';
+        this.updateIoReport();
+        void this.refreshOutputDevices();
       } catch (err) {
+        this.outputRouter?.dispose();
+        this.outputRouter = null;
+        this.node = null;
+        this.analyser = null;
         await context.close();
         this.context = null;
         throw err;
       }
     }
     if (this.context.state !== 'running') await this.context.resume();
+    this.updateIoReport();
     return this.context;
   }
 
@@ -336,9 +516,7 @@ class ReverbLab {
       const context = await this.ensureAudio();
       this.stopPlayback(true);
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('Live input requires a secure browser context (HTTPS or localhost).');
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false,
-      });
+      const stream = await navigator.mediaDevices.getUserMedia(liveGuitarConstraints());
       if (!this.node) { stream.getTracks().forEach((t) => t.stop()); throw new Error('DSP unavailable.'); }
       this.microphoneStream = stream;
       this.microphoneSource = context.createMediaStreamSource(stream);
@@ -346,7 +524,9 @@ class ReverbLab {
       elem<HTMLButtonElement>('mic-button').textContent = '◉ STOP LIVE INPUT';
       elem('loaded-file').textContent = 'Live microphone / audio interface input';
       this.scheduleCalibration(0);
-      this.setStatus('Live input monitoring. Wear headphones; start with device volume low.');
+      this.updateIoReport();
+      void this.refreshOutputDevices();
+      this.setStatus('Live input monitoring. Wired headphones and interface recommended; disable hardware direct monitoring to avoid hearing delayed and dry paths together.');
     } catch (err) { this.setStatus(`Live input unavailable: ${String(err)}`, true); }
   }
 
@@ -358,6 +538,7 @@ class ReverbLab {
     elem<HTMLButtonElement>('mic-button').textContent = '◎ USE LIVE GUITAR / MICROPHONE';
     if (this.currentBuffer) elem('loaded-file').textContent = this.currentName;
     this.scheduleCalibration(0);
+    this.updateIoReport();
   }
 
   private async exportWav(): Promise<void> {
@@ -388,7 +569,11 @@ class ReverbLab {
     const canvas = elem<HTMLCanvasElement>('scope');
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const draw = (): void => {
+    let lastFrame = 0;
+    const draw = (timestamp: number): void => {
+      requestAnimationFrame(draw);
+      if (timestamp - lastFrame < 32) return; // ~30 fps, independent of the audio render thread
+      lastFrame = timestamp;
       const bounds = canvas.getBoundingClientRect();
       const width = Math.max(1, Math.floor(bounds.width * devicePixelRatio));
       const height = Math.max(1, Math.floor(bounds.height * devicePixelRatio));
@@ -414,7 +599,6 @@ class ReverbLab {
         ctx.strokeStyle = '#dbaa64';
         ctx.beginPath(); ctx.moveTo(0, height / 2); ctx.lineTo(width, height / 2); ctx.stroke();
       }
-      requestAnimationFrame(draw);
     };
     requestAnimationFrame(draw);
   }

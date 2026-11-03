@@ -69,6 +69,23 @@
           </div>
           <div class="transport"><div class="transport-controls"><button type="button" id="play-button" disabled aria-label="Play selected source"><span id="play-icon">▶</span> <span id="play-text">PLAY</span></button><button type="button" id="stop-button" disabled>■ STOP</button><label class="checkbox-label"><input type="checkbox" id="loop" checked /> LOOP</label></div><div class="loaded-file" id="loaded-file">No audio loaded yet.</div></div>
           <div class="waveform"><div class="waveform-top"><span>OUTPUT SIGNAL / L</span><span id="scope-status">AWAITING INPUT</span></div><canvas id="scope" width="940" height="132" aria-label="Live audio waveform"></canvas><div class="waveform-axis"><span>−1.0</span><span>0.0</span><span>+1.0</span></div></div>
+          <section class="audio-io-panel" aria-labelledby="audio-io-heading">
+            <div class="audio-io-head"><span class="eyebrow" id="audio-io-heading">03 / AUDIO I/O</span><span class="io-tag">LIVE GUITAR / LOW LATENCY</span></div>
+            <div class="audio-io-grid">
+              <div class="io-field">
+                <label for="output-device">Output device</label>
+                <div class="io-select-row"><select id="output-device" aria-label="Audio output device"><option value="">System default</option></select><button type="button" id="output-refresh" title="Refresh audio output list" aria-label="Refresh output devices">↻</button></div>
+                <button type="button" id="output-choose" class="io-minor-action">Choose / allow another output…</button>
+              </div>
+              <div class="io-field">
+                <label for="latency-mode">Audio buffer preference</label>
+                <div class="io-select-row"><select id="latency-mode"><option value="low" selected>Low · 5 ms request</option><option value="balanced">Interactive · browser recommended</option><option value="stable">Stable · balanced buffering</option></select><button type="button" id="latency-apply" title="Apply buffer preference; restarts audio">Apply</button></div>
+                <span class="io-subtext">Changing buffers stops playback and live monitoring.</span>
+              </div>
+            </div>
+            <div class="io-report" id="io-report" role="status" aria-live="polite">Audio engine not started. Output device selection depends on browser permissions.</div>
+            <p class="io-disclaimer">Reported output latency excludes capture and hardware round-trip. Use a wired interface/headphones; browser audio may add delay. Embedded previews can block speaker selection.</p>
+          </section>
           <div class="workbench-footer"><div class="input-area"><button type="button" class="text-action" id="mic-button">◎ USE LIVE GUITAR / MICROPHONE</button><span class="minor-copy">Headphones recommended to avoid feedback.</span></div><button type="button" class="download-action" id="export-button" disabled>↓ EXPORT PROCESSED WAV</button></div>
           <div class="system-line"><span id="status" role="status" aria-live="polite">Choose “Play demo riff” to hear the effect.</span><label class="checkbox-label safety"><input type="checkbox" id="safety" checked /> OUTPUT SAFETY ON</label></div>
         </section>
