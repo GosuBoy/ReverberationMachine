@@ -35,3 +35,7 @@ Live audio monitoring can cause acoustic feedback. Wear headphones, start with l
 ## Trademarks
 
 This independent research prototype is not affiliated with or endorsed by Death By Audio, Accutronics, or Belton. No original product graphics or proprietary firmware are included.
+
+## v0.2 candidate — intentionally separate from v0.1
+
+The existing engine in `src/dsp/engine.ts` is unchanged, and v0.2 lives in separate `candidate.ts`, `ab.ts`, and `match.ts` modules. Detailed component evidence, the gain transfer hypothesis, non-verified switch and mixer sections, A/B procedure and remaining original-hardware validation gates are documented in [CIRCUIT_CANDIDATE_V02.md](CIRCUIT_CANDIDATE_V02.md).

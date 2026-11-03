@@ -1,4 +1,4 @@
-import { ReverberationPedal } from '../dsp/engine.js';
+import { ReverberationAB } from '../dsp/ab.js';
 
 declare const sampleRate: number;
 declare function registerProcessor(name: string, processor: typeof AudioWorkletProcessor): void;
@@ -8,7 +8,7 @@ declare class AudioWorkletProcessor {
 }
 
 class ReverberationProcessor extends AudioWorkletProcessor {
-  private readonly engine = new ReverberationPedal(sampleRate);
+  private readonly engine = new ReverberationAB(sampleRate);
 
   static get parameterDescriptors(): Array<{ name: string; defaultValue: number; minValue: number; maxValue: number; automationRate: 'k-rate' }> {
     return [
@@ -18,6 +18,9 @@ class ReverberationProcessor extends AudioWorkletProcessor {
       { name: 'tone', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
       { name: 'bypass', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
       { name: 'safety', defaultValue: 1, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'profile', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'match', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'trimDb', defaultValue: 0, minValue: -12, maxValue: 12, automationRate: 'k-rate' },
     ];
   }
 
@@ -31,12 +34,17 @@ class ReverberationProcessor extends AudioWorkletProcessor {
   process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
     const out = outputs[0];
     if (!out || out.length === 0) return true;
-    this.engine.setParameter('altitude', parameters.altitude?.[0] ?? 0.32);
-    this.engine.setParameter('verb', parameters.verb?.[0] ?? 0.52);
-    this.engine.setParameter('volume', parameters.volume?.[0] ?? 0.58);
-    this.engine.setParameter('tone', parameters.tone?.[0] ?? 0);
-    this.engine.setParameter('bypass', parameters.bypass?.[0] ?? 0);
-    this.engine.setParameter('safety', parameters.safety?.[0] ?? 1);
+    this.engine.setParameters({
+      altitude: parameters.altitude?.[0] ?? 0.32,
+      verb: parameters.verb?.[0] ?? 0.52,
+      volume: parameters.volume?.[0] ?? 0.58,
+      tone: parameters.tone?.[0] ?? 0,
+      bypass: parameters.bypass?.[0] ?? 0,
+      safety: parameters.safety?.[0] ?? 1,
+    });
+    this.engine.setProfile((parameters.profile?.[0] ?? 0) > 0.5 ? 'candidate' : 'classic');
+    this.engine.setLevelMatch((parameters.match?.[0] ?? 0) > 0.5);
+    this.engine.setCandidateTrimDb(parameters.trimDb?.[0] ?? 0);
     const incoming = inputs[0];
     const left = incoming?.[0];
     const right = incoming?.[1] ?? left;
@@ -47,7 +55,7 @@ class ReverberationProcessor extends AudioWorkletProcessor {
       outputL[i] = this.engine.left;
       if (outputR) outputR[i] = this.engine.right;
     }
-    return true; // Tail time: keep reverb alive after source ends.
+    return true;
   }
 }
 

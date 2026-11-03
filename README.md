@@ -4,6 +4,24 @@ An **unofficial, experimental** reverb/distortion pedal inspired by the Death By
 
 > **Not a verified clone.** This is an initial listening model. The Belton BTDR-2H-L algorithm has not been recovered, and the full original circuit wiring has not been conclusively traced. See [MODEL_NOTES.md](MODEL_NOTES.md).
 
+## Two selectable audio profiles (v0.2)
+
+- **A · Classic v0.1:** Existing original browser sound, preserved unchanged.
+- **B · Circuit candidate v0.2:** Experimental RC feedback gain around reported **68 kΩ / 10 kΩ / 100 pF**, mono path, wet-only Dark/Light filters, and a provisional common wet/dry saturation stage. **Not a validated original circuit**.
+
+Both profiles run continuously in the `AudioWorklet` for tail-preserving, click-smoothed switching. Optional **Match levels** estimates a fixed RMS trim using the same loaded source (or a synthetic fixture for live input), in a Worker. Matching never introduces playback AGC. WAV export follows the selected profile. Details and limitations: [CIRCUIT_CANDIDATE_V02.md](CIRCUIT_CANDIDATE_V02.md).
+
+## Live audio latency and output selection
+
+The **Audio I/O** panel adds a **5 ms output-buffer request** (not guaranteed), capture constraints for low latency, selectable output devices in compatible browsers, and browser-reported output/capture latency readouts. Both profiles keep exactly the same DSP voicing as before.
+
+- Low is the default; Interactive and Stable options help when a device crackles. Applying buffer settings restarts monitoring.
+- **Direct output** using `AudioContext.setSinkId()` is preferred. Where unavailable, the app can use an audio-element fallback if supported; otherwise it uses the system output.
+- Choose a device from the dropdown or authorize one from the device picker. An embedded preview may block speaker-selection permissions; use the top-level HTTPS app.
+- For responsive guitar monitoring, use a wired USB interface/headphones and turn off hardware direct monitoring if it duplicates the dry signal.
+
+Output readouts are browser estimates and **not measured round-trip latency**. See [AUDIO_IO_NOTES.md](AUDIO_IO_NOTES.md) for details and troubleshooting.
+
 ## Quick start (Bun + Vite)
 
 ```bash
@@ -38,6 +56,10 @@ The test suite uses Node's built-in test runner after compiling only the depende
 ```text
 src/main.ts                     UI, upload/decode, playback, live input, export
 src/audio/pedal-worklet.ts      AudioWorklet wrapper + k-rate parameter automation
+src/audio/match-worker.ts       Level calibration off the UI thread
+src/dsp/candidate.ts            RC-feedback and analog-interaction candidate
+src/dsp/ab.ts                   Continuous dual-DSP A/B crossfade and fixed trim
+src/dsp/match.ts                Deterministic comparison RMS measurement
 src/audio/demo.ts               Deterministic synthesized input fixture
 src/audio/wav.ts                Offline stereo WAV export through same DSP engine
 src/dsp/engine.ts               Self-contained DSP; zero per-sample heap allocation
@@ -49,7 +71,7 @@ AudioWorklet runs on the browser's audio rendering thread. The worklet asks the 
 
 ## Status
 
-- Initial runnable browser prototype, not a circuit-equivalent implementation.
+- v0.2 adds a circuit-informed **candidate** and fixed-RMS A/B without altering v0.1 Classic. Still not a circuit-equivalent implementation.
 - Test and build results should be verified in the target environment before release.
 - No physical pedal or audio reference response has been measured against this implementation.
 

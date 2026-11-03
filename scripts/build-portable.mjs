@@ -12,7 +12,8 @@ const html = (await readFile(path.join(root, 'index.html'), 'utf8'))
   .replace('/src/main.ts', './main.js');
 await writeFile(path.join(dist, 'index.html'), html);
 const main = (await readFile(path.join(dist, 'main.js'), 'utf8'))
-  .replace(/import workletUrl from ['"]\.\/audio\/pedal-worklet\.ts\?worker&url['"];?/, "const workletUrl = new URL('./audio/pedal-worklet.js', import.meta.url).href;");
-if (main.includes('?worker&url')) throw new Error('Could not resolve AudioWorklet URL in portable build');
+  .replace(/import workletUrl from ['"]\.\/audio\/pedal-worklet\.ts\?worker&url['"];?/, "const workletUrl = new URL('./audio/pedal-worklet.js', import.meta.url).href;")
+  .replace(/import matchWorkerUrl from ['"]\.\/audio\/match-worker\.ts\?worker&url['"];?/, "const matchWorkerUrl = new URL('./audio/match-worker.js', import.meta.url).href;");
+if (main.includes('?worker&url')) throw new Error('Could not resolve worker URL in portable build');
 await writeFile(path.join(dist, 'main.js'), main);
 console.log('Portable static build ready in dist/. Serve with: python3 -m http.server 5173 -d dist');

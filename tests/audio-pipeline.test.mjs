@@ -57,7 +57,7 @@ test('AudioWorklet wrapper registers and processes 128-frame stereo blocks', asy
   await import('../.test-build/audio/pedal-worklet.js');
   assert.equal(registered.name, 'reverberation-lab');
   const processor = new registered.ctor();
-  assert.equal(registered.ctor.parameterDescriptors.length, 6);
+  assert.equal(registered.ctor.parameterDescriptors.length, 9);
   const outputL = new Float32Array(128);
   const outputR = new Float32Array(128);
   const inputL = new Float32Array(128);
@@ -71,4 +71,20 @@ test('AudioWorklet wrapper registers and processes 128-frame stereo blocks', asy
   processor.port.onmessage({ data: { command: 'reset' } });
   globalThis.registerProcessor = undefined;
   globalThis.AudioWorkletProcessor = undefined;
+});
+
+test('offline WAV export selects the circuit candidate and preserves Classic by default', async () => {
+  const context = fakeAudioContext(8000);
+  const b = context.createBuffer(1, 3200);
+  const samples = b.getChannelData(0);
+  for (let i = 0; i < samples.length; i++) samples[i] = 0.12 * Math.sin(i * 0.17);
+  const options = { ...DEFAULT_PARAMETERS, altitude: 0.72, verb: 0.9 };
+  const [defaultWav, candidateWav] = await Promise.all([
+    renderProcessedWav(b, options),
+    renderProcessedWav(b, options, () => {}, { profile: 'candidate' }),
+  ]);
+  const a = new Uint8Array(await defaultWav.arrayBuffer());
+  const c = new Uint8Array(await candidateWav.arrayBuffer());
+  assert.equal(a.length, c.length);
+  assert.notDeepEqual(a.slice(44, 144), c.slice(44, 144));
 });
