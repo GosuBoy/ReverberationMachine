@@ -119,3 +119,17 @@ h2 { font-size: 36px; letter-spacing: -.06em; font-weight: 600; margin: 12px 0 0
 @media (max-width: 850px) { .layout { display: block; } .intro { padding: 76px 10px 32px; } h1 { font-size: clamp(60px, 10vw, 95px); } .intro-meta { margin-top: 40px; }.pedal-space { min-height: unset; padding: 35px 0 65px; } .pedal-caption { margin-bottom: 0; } .workbench { margin-top: 0; padding: 28px; } }
 @media (max-width: 570px) { .site-shell { padding: 0 15px; }.topbar { height: 63px; } .topbar-right { font-size: 8px; } .topbar-version, .brand-suffix { display: none; } .brandmark { font-size: 9px; } .intro { padding: 54px 8px 22px; } h1 { font-size: clamp(50px, 12vw, 72px); margin: 30px 0 25px; } .lead { font-size: 15px; } .intro-meta { gap: 17px; } .intro-meta span { font-size: 8px; } .pedal { width: min(100%, 424px); padding: 9px; } .pedal-surface { padding: 23px 15px 18px; min-height: 588px; } .pedal-title { font-size: 23px; } .dials { margin: 0 -9px; gap: 0; } .dial-area { width: clamp(96px, 29vw, 124px); height: clamp(96px, 29vw, 124px); } .dial { width: clamp(71px, 21vw, 90px); height: clamp(71px, 21vw, 90px); } .dial-ticks { opacity: 0; }.dial-pointer { transform-origin: 2px 29px; } .control-name { font-size: 10px; }.pedal-lower { padding: 0 14px; min-height: 153px; } .pedal-identity { font-size: 81px; }.pedal-bottom { font-size: 7px; }.pedal-caption { font-size: 9px; text-align: center; } .workbench { padding: 24px 18px; }.workbench-heading { gap: 15px; } h2 { font-size: 31px; } .chip { font-size: 8px; padding: 8px; }.source-grid { grid-template-columns: 1fr; }.source-action { min-height: 88px; } .transport { align-items: start; flex-direction: column; }.loaded-file { max-width: 100%; }.workbench-footer { align-items: start; flex-direction: column; }.system-line { align-items: start; flex-direction: column; }.footer { flex-direction: column; gap: 12px; }.footer p { text-align: left; } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition-duration: 0.01ms !important; } }
+
+/* A/B research controls: separate from the pedal's original three knobs. */
+.compare-panel { margin: 0 0 30px; border: 1px solid #ccd4c6; border-radius: 12px; padding: 22px; background: #ecefe7; }
+.compare-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 14px; }
+.compare-disclaimer { font: 9px 'DM Mono', monospace; color: #858f7e; letter-spacing: .08em; }
+.compare-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.compare-choices button { text-align: left; padding: 14px; display: flex; flex-direction: column; gap: 6px; color: #405141; border: 1px solid #c6d0c2; background: #f8faf5; border-radius: 8px; }
+.compare-choices button[aria-pressed="true"] { border-color: #436d48; background: #dbe6d7; box-shadow: inset 0 0 0 1px #436d48; }
+.compare-choices strong { font-size: 13px; }
+.compare-choices small { font: 10px 'DM Mono', monospace; color: #697767; }
+.compare-meta { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding-top: 17px; flex-wrap: wrap; }
+.compare-meta #match-result { color: #697767; font: 10px 'DM Mono', monospace; }
+.compare-panel p { margin: 13px 0 0; font-size: 11px; color: #61705e; line-height: 1.5; }
+@media (max-width: 570px) { .compare-choices { grid-template-columns: 1fr; }.compare-disclaimer { font-size: 8px; } }

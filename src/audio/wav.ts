@@ -1,17 +1,23 @@
-import { ReverberationPedal, type PedalParameters } from '../dsp/engine.js';
+import type { PedalParameters } from '../dsp/engine.js';
+import { ReverberationAB, type ModelProfile } from '../dsp/ab.js';
 
-/** Render uploaded/demo audio through the SAME DSP engine, plus a reverb tail. */
+/** Render uploaded/demo audio through the selected realtime DSP profile, plus a reverb tail. */
+export interface RenderOptions { profile?: ModelProfile; levelMatch?: boolean; candidateTrimDb?: number; }
 export async function renderProcessedWav(
   buffer: AudioBuffer,
   parameters: PedalParameters,
   onProgress: (fraction: number) => void = () => {},
+  options: RenderOptions = {},
 ): Promise<Blob> {
   const sampleRate = buffer.sampleRate;
   if (buffer.duration > 90) throw new Error('WAV export is limited to 90 seconds of source audio.');
   if (sampleRate < 8000 || sampleRate > 192000) throw new Error('Unsupported audio sample rate.');
   const count = Math.ceil((buffer.duration + 4.2) * sampleRate);
-  const engine = new ReverberationPedal(sampleRate, parameters);
+  const engine = new ReverberationAB(sampleRate, parameters);
   engine.setParameters(parameters, true);
+  engine.setProfile(options.profile ?? 'classic', true);
+  engine.setLevelMatch(options.levelMatch ?? false, true);
+  engine.setCandidateTrimDb(options.candidateTrimDb ?? 0, true);
   const wav = new ArrayBuffer(44 + count * 4);
   const view = new DataView(wav);
   const writeAscii = (offset: number, value: string): void => {

@@ -1,4 +1,7 @@
 import workletUrl from './audio/pedal-worklet.ts?worker&url';
+import matchWorkerUrl from './audio/match-worker.ts?worker&url';
+import type { ModelProfile } from './dsp/ab.js';
+import type { GainMatchResult } from './dsp/match.js';
 import { makeDemoBuffer } from './audio/demo.js';
 import { renderProcessedWav } from './audio/wav.js';
 import { DEFAULT_PARAMETERS, type PedalParameters } from './dsp/engine.js';
@@ -24,6 +27,12 @@ class ReverbLab {
   private started = 0;
   private params: PedalParameters = { ...DEFAULT_PARAMETERS };
   private rendering = false;
+  private activeProfile: ModelProfile = 'classic';
+  private levelMatch = false;
+  private matchedTrimDb = 0;
+  private matchWorker: Worker | null = null;
+  private calibrationId = 0;
+  private calibrationTimer: number | null = null;
 
   constructor() {
     this.wireControls();
@@ -52,6 +61,7 @@ class ReverbLab {
         this.params[name] = Number(elem<HTMLInputElement>(name).value) / 100;
         this.updateDialReadouts();
         this.updateParam(name);
+        this.scheduleCalibration();
       });
     }
     for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-tone]')) {
@@ -61,6 +71,7 @@ class ReverbLab {
           el.setAttribute('aria-pressed', String(el === btn));
         });
         this.updateParam('tone');
+        this.scheduleCalibration();
       });
     }
     elem<HTMLButtonElement>('bypass').addEventListener('click', () => {
@@ -73,6 +84,7 @@ class ReverbLab {
     elem<HTMLInputElement>('safety').addEventListener('change', (event) => {
       this.params.safety = (event.currentTarget as HTMLInputElement).checked ? 1 : 0;
       this.updateParam('safety');
+      this.scheduleCalibration();
       this.setStatus(this.params.safety ? 'Output safety enabled.' : 'Caution: output safety disabled; start at low volume.');
     });
     elem<HTMLInputElement>('loop').addEventListener('change', () => {
@@ -87,6 +99,27 @@ class ReverbLab {
     elem<HTMLButtonElement>('stop-button').addEventListener('click', () => this.stopPlayback(true));
     elem<HTMLButtonElement>('mic-button').addEventListener('click', () => { void this.toggleMicrophone(); });
     elem<HTMLButtonElement>('export-button').addEventListener('click', () => { void this.exportWav(); });
+    for (const button of document.querySelectorAll<HTMLButtonElement>('[data-profile]')) {
+      button.addEventListener('click', () => {
+        this.activeProfile = button.dataset.profile === 'candidate' ? 'candidate' : 'classic';
+        document.querySelectorAll<HTMLButtonElement>('[data-profile]').forEach(other =>
+          other.setAttribute('aria-pressed', String(other === button)));
+        this.updateComparisonControl('profile', this.activeProfile === 'candidate' ? 1 : 0);
+        elem<HTMLElement>('model-note').textContent = this.activeProfile === 'classic'
+          ? 'Original v0.1 sound, unchanged.'
+          : 'v0.2 uses reported feedback RC values and provisional mono, wet-only tone and mixer stages. Not a measured original pedal.';
+      });
+    }
+    elem<HTMLInputElement>('level-match').addEventListener('change', (event) => {
+      this.levelMatch = (event.currentTarget as HTMLInputElement).checked;
+      if (this.levelMatch) this.scheduleCalibration(0);
+      else {
+        this.calibrationId++;
+        if (this.calibrationTimer !== null) window.clearTimeout(this.calibrationTimer);
+        this.updateComparisonControl('match', 0);
+        elem('match-result').textContent = 'Level match off · no playback AGC';
+      }
+    });
   }
 
   private async ensureAudio(): Promise<AudioContext> {
@@ -112,6 +145,9 @@ class ReverbLab {
           const parameter = node.parameters.get(name);
           if (parameter) parameter.value = this.params[name];
         }
+        node.parameters.get('profile')!.value = this.activeProfile === 'candidate' ? 1 : 0;
+        node.parameters.get('match')!.value = this.levelMatch ? 1 : 0;
+        node.parameters.get('trimDb')!.value = this.matchedTrimDb;
         const analyser = context.createAnalyser();
         analyser.fftSize = 2048;
         analyser.smoothingTimeConstant = 0.72;
@@ -137,6 +173,63 @@ class ReverbLab {
       parameter.cancelScheduledValues(this.context.currentTime);
       parameter.setTargetAtTime(this.params[name], this.context.currentTime, 0.012);
     }
+  }
+
+  private updateComparisonControl(name: 'profile' | 'match' | 'trimDb', value: number): void {
+    const param = this.node?.parameters.get(name);
+    if (!param || !this.context) return;
+    param.cancelScheduledValues(this.context.currentTime);
+    param.setTargetAtTime(value, this.context.currentTime, 0.012);
+  }
+
+  private scheduleCalibration(delayMs = 360): void {
+    if (!this.levelMatch) return;
+    const id = ++this.calibrationId;
+    if (this.calibrationTimer !== null) window.clearTimeout(this.calibrationTimer);
+    // Old trim is invalidated whenever knobs, the input file, or input mode changes.
+    this.updateComparisonControl('match', 0);
+    elem('match-result').textContent = 'Measuring both profiles…';
+    this.calibrationTimer = window.setTimeout(() => this.calibrate(id), delayMs);
+  }
+
+  private calibrate(id: number): void {
+    const sampleRate = this.context?.sampleRate ?? 44100;
+    if (!this.matchWorker) {
+      const worker = new Worker(matchWorkerUrl, { type: 'module' });
+      worker.onmessage = (e: MessageEvent<{ id: number; result?: GainMatchResult; error?: string }>) => {
+        if (e.data.id !== this.calibrationId || !this.levelMatch) return;
+        if (!e.data.result) {
+          elem<HTMLInputElement>('level-match').checked = false;
+          this.levelMatch = false;
+          this.updateComparisonControl('match', 0);
+          elem('match-result').textContent = `Match unavailable: ${e.data.error ?? 'unknown error'}`;
+          return;
+        }
+        this.matchedTrimDb = e.data.result.candidateTrimDb;
+        this.updateComparisonControl('trimDb', this.matchedTrimDb);
+        this.updateComparisonControl('match', 1);
+        const label = e.data.result.reference === 'source' ? 'loaded source' : 'synthetic fixture';
+        const sign = this.matchedTrimDb >= 0 ? '+' : '';
+        const limited = Math.abs(e.data.result.rawDifferenceDb) > 12.01 ? ' (±12 dB limit)' : '';
+        elem('match-result').textContent = `Fixed RMS trim ${sign}${this.matchedTrimDb.toFixed(1)} dB · ${label}${limited}`;
+      };
+      worker.onerror = () => {
+        this.updateComparisonControl('match', 0);
+        elem('match-result').textContent = 'Calibration worker failed. Level matching disabled.';
+        this.levelMatch = false;
+        elem<HTMLInputElement>('level-match').checked = false;
+      };
+      this.matchWorker = worker;
+    }
+    // For live guitar, there is no stationary reference recording: use the fixed test fixture.
+    const source = this.microphoneStream ? null : this.currentBuffer;
+    const n = source ? Math.min(source.length, Math.round(source.sampleRate * 4)) : 0;
+    const left = source ? source.getChannelData(0).slice(0, n) : undefined;
+    const right = source && source.numberOfChannels > 1 ? source.getChannelData(1).slice(0, n) : undefined;
+    const transfer: Transferable[] = [];
+    if (left) transfer.push(left.buffer);
+    if (right) transfer.push(right.buffer);
+    this.matchWorker.postMessage({ id, sampleRate, params: { ...this.params }, left, right }, transfer);
   }
 
   private async selectDemo(): Promise<void> {
@@ -170,6 +263,7 @@ class ReverbLab {
     elem<HTMLButtonElement>('play-button').disabled = false;
     elem<HTMLButtonElement>('stop-button').disabled = false;
     elem<HTMLButtonElement>('export-button').disabled = false;
+    this.scheduleCalibration(0);
   }
 
   private async startPlayback(): Promise<void> {
@@ -251,6 +345,7 @@ class ReverbLab {
       this.microphoneSource.connect(this.node);
       elem<HTMLButtonElement>('mic-button').textContent = '◉ STOP LIVE INPUT';
       elem('loaded-file').textContent = 'Live microphone / audio interface input';
+      this.scheduleCalibration(0);
       this.setStatus('Live input monitoring. Wear headphones; start with device volume low.');
     } catch (err) { this.setStatus(`Live input unavailable: ${String(err)}`, true); }
   }
@@ -262,6 +357,7 @@ class ReverbLab {
     this.microphoneStream = null;
     elem<HTMLButtonElement>('mic-button').textContent = '◎ USE LIVE GUITAR / MICROPHONE';
     if (this.currentBuffer) elem('loaded-file').textContent = this.currentName;
+    this.scheduleCalibration(0);
   }
 
   private async exportWav(): Promise<void> {
@@ -274,11 +370,11 @@ class ReverbLab {
       this.setStatus('Rendering processed stereo WAV locally…');
       const blob = await renderProcessedWav(this.currentBuffer, { ...this.params }, (progress) => {
         btn.textContent = `↓ RENDERING ${Math.round(progress * 100)}%`;
-      });
+      }, { profile: this.activeProfile, levelMatch: this.levelMatch, candidateTrimDb: this.matchedTrimDb });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${name}-reverberation-lab.wav`;
+      a.download = `${name}-${this.activeProfile}-reverberation-lab.wav`;
       document.body.append(a);
       a.click();
       a.remove();

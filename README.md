@@ -4,6 +4,13 @@ An **unofficial, experimental** reverb/distortion pedal inspired by the Death By
 
 > **Not a verified clone.** This is an initial listening model. The Belton BTDR-2H-L algorithm has not been recovered, and the full original circuit wiring has not been conclusively traced. See [MODEL_NOTES.md](MODEL_NOTES.md).
 
+## Two selectable audio profiles (v0.2)
+
+- **A · Classic v0.1:** Existing original browser sound, preserved unchanged.
+- **B · Circuit candidate v0.2:** Experimental RC feedback gain around reported **68 kΩ / 10 kΩ / 100 pF**, mono path, wet-only Dark/Light filters, and a provisional common wet/dry saturation stage. **Not a validated original circuit**.
+
+Both profiles run continuously in the `AudioWorklet` for tail-preserving, click-smoothed switching. Optional **Match levels** estimates a fixed RMS trim using the same loaded source (or a synthetic fixture for live input), in a Worker. Matching never introduces playback AGC. WAV export follows the selected profile. Details and limitations: [CIRCUIT_CANDIDATE_V02.md](CIRCUIT_CANDIDATE_V02.md).
+
 ## Quick start (Bun + Vite)
 
 ```bash
@@ -38,6 +45,10 @@ The test suite uses Node's built-in test runner after compiling only the depende
 ```text
 src/main.ts                     UI, upload/decode, playback, live input, export
 src/audio/pedal-worklet.ts      AudioWorklet wrapper + k-rate parameter automation
+src/audio/match-worker.ts       Level calibration off the UI thread
+src/dsp/candidate.ts            RC-feedback and analog-interaction candidate
+src/dsp/ab.ts                   Continuous dual-DSP A/B crossfade and fixed trim
+src/dsp/match.ts                Deterministic comparison RMS measurement
 src/audio/demo.ts               Deterministic synthesized input fixture
 src/audio/wav.ts                Offline stereo WAV export through same DSP engine
 src/dsp/engine.ts               Self-contained DSP; zero per-sample heap allocation
@@ -49,7 +60,7 @@ AudioWorklet runs on the browser's audio rendering thread. The worklet asks the 
 
 ## Status
 
-- Initial runnable browser prototype, not a circuit-equivalent implementation.
+- v0.2 adds a circuit-informed **candidate** and fixed-RMS A/B without altering v0.1 Classic. Still not a circuit-equivalent implementation.
 - Test and build results should be verified in the target environment before release.
 - No physical pedal or audio reference response has been measured against this implementation.
 

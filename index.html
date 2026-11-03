@@ -54,6 +54,15 @@
 
         <section class="workbench" aria-labelledby="workbench-title">
           <div class="workbench-heading"><div><div class="eyebrow">02 / PLAYGROUND</div><h2 id="workbench-title">The workbench</h2></div><span class="chip" id="engine-state">AUDIO OFFLINE</span></div>
+          <section class="compare-panel" aria-label="Compare audio models">
+            <div class="compare-head"><span class="eyebrow">A / B MODEL COMPARISON</span><span class="compare-disclaimer">RESEARCH · NOT HARDWARE VERIFIED</span></div>
+            <div class="compare-choices" role="group" aria-label="Audio processing profile">
+              <button type="button" data-profile="classic" aria-pressed="true"><strong>A · Classic</strong><small>v0.1 · Original browser sound</small></button>
+              <button type="button" data-profile="candidate" aria-pressed="false"><strong>B · Circuit candidate</strong><small>v0.2 · Experimental RC feedback</small></button>
+            </div>
+            <div class="compare-meta"><label class="checkbox-label"><input id="level-match" type="checkbox" /> MATCH LEVELS</label><span id="match-result" aria-live="polite">Level match off · no playback AGC</span></div>
+            <p id="model-note">Original v0.1 sound, unchanged.</p>
+          </section>
           <div class="source-grid">
             <button class="source-action" type="button" id="demo-button"><span class="source-icon">✳</span><span><strong>Play demo riff</strong><small>Generated locally · no audio file needed</small></span><span class="source-chevron">↗</span></button>
             <label class="source-action upload-action" for="file-input"><span class="source-icon">↥</span><span><strong>Load an audio file</strong><small>WAV, MP3, or other browser-supported audio</small></span><span class="source-chevron">↗</span></label><input type="file" id="file-input" accept="audio/*" hidden />
